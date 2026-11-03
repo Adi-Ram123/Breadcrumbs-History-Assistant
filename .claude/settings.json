@@ -8,5 +8,16 @@
       "Write(./tests/mutants/**)",
       "Edit(./eval/pass_bars.toml)"
     ]
+  },
+  "extraKnownMarketplaces": {
+    "breadcrumbs": {
+      "source": {
+        "source": "github",
+        "repo": "Adi-Ram123/Breadcrumbs-History-Assistant"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "superpowers@breadcrumbs": true
   }
 }

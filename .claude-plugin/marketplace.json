@@ -1,0 +1,19 @@
+{
+  "name": "breadcrumbs",
+  "description": "Claude Code plugins used to build Breadcrumbs, pinned to the versions the existing specs, plans and records were made with",
+  "owner": {
+    "name": "Daniel Lam"
+  },
+  "plugins": [
+    {
+      "name": "superpowers",
+      "description": "Brainstorming, writing-plans, executing-plans, TDD and code-review workflows (obra/superpowers 6.4.2)",
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers",
+        "sha": "8ca22dba9a94f28898bbce59f2537ff4d87c747d"
+      },
+      "version": "6.4.2"
+    }
+  ]
+}
