@@ -2,7 +2,7 @@
 
 A Chrome extension plus a local FastAPI backend that answers questions about your own browsing history ("what was the last movie I watched?", "what did I search 2 days ago?") and links each answer to the history entries it came from. Everything runs on the user's machine: SQLite with sqlite-vec, the retriever, and a local Qwen LLM. Design: `docs/superpowers/specs/2026-11-02-repo-scaffold-design.md`. Proposal-level contract: pass bars in `eval/pass_bars.toml`, time rules in `docs/time-rules.md`.
 
-Question flow: side panel → `POST /ask` → `Parser.parse(question, now, tz)` → Intent → executor (SQL kind + time filter, then vector topic rank) → AnswerWriter → verifier → response.
+Question flow: side panel → `POST /ask` → `Parser.parse(question, now, tz)` → Intent → executor (SQL kind + time filter, then vector topic rank) → rows and template answer, cached by `ask_id` → side panel → `POST /answer` → AnswerWriter → verifier → answer. The rows show before the LLM sentence is written.
 
 ## Ownership
 
