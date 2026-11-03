@@ -1,207 +1,134 @@
 # Breadcrumbs
 
-**Breadcrumbs: History Assistant** is a Chrome extension that answers questions about your own browsing history ("that laptop review site I was reading", "the show I was watching last night") and links you back to the pages. Everything runs inside the browser: a fine-tuned retriever finds candidate pages, and a small local LLM writes the reply. There is no backend server, no paid API, and your history never leaves your machine.
+**Breadcrumbs: History Assistant** answers questions about your own browsing history, such as "what was the last movie I watched?", "what did I search 2 days ago?" or "which ramen pages did I open last week?", and links every answer to the history entries it came from.
+
+It is a Chrome extension with a side-panel chat, backed by a FastAPI service on your own machine. Storage (SQLite with sqlite-vec), the retriever and the reply LLM (a local Qwen model) all run locally. There is no hosted API, and your history never leaves your laptop.
+
+> Status: scaffold. The ingest, storage, executor, verifier and API paths run end to end with stub models. The parsers, the fine-tuned retriever and the LLM are being built in `ml/`.
 
 ## How it works
 
-Answering a question is a two-hop pipeline.
+**Ingest**
 
-1. **Permission.** On first run the user grants the `history` permission. Nothing happens before that.
-2. **Sync on open.** Each time the user clicks the extension icon, the side panel opens and syncs: it pulls history from Chrome since the last sync, removes pages the user has deleted, and embeds any new pages. While the panel stays open, it also picks up pages visited during the chat.
-3. **Ask.** The user types a question in the panel.
-4. **Hop 1, retriever.** The fine-tuned retriever embeds the question and scores it against every stored page. The top 10 pages come back in under a second and are shown immediately.
-5. **Hop 2, reply LLM.** The local LLM reads the question and those 10 pages and writes a one- or two-sentence reply in a fixed JSON shape, citing pages by number.
-6. **Verify and show.** Every citation is checked against the list the retriever returned. The panel shows the reply with clickable citation chips above the ranked list.
+1. On install, on browser startup and whenever the side panel opens, the extension syncs `chrome.history` since the last successful sync (the first sync covers 90 days). Visits are sent with title and URL; reloads are not counted, and history browsed while the backend was down is picked up on the next sync.
+2. A content script also extracts each page's main text with Mozilla Readability. The visit time comes from Chrome's history, so the text attaches to the same entry instead of creating a duplicate. Google searches are stored as `kind: "search"` with the `q=` query text.
+3. The backend validates each entry, stores one row per visit or search in SQLite (UTC timestamps), splits page text into chunks, and embeds them into a sqlite-vec index.
 
-If the LLM is unavailable (no WebGPU, not downloaded yet, or turned off), the app still shows hop 1's ranked list on its own.
+**Ask**
+
+1. The user types a question in the side panel, which calls `POST /ask`.
+2. The **parser** turns it into an **Intent**: kind (search, visit or any), time range, topic, limit and order. `now` and the timezone are passed in, so time phrases resolve the same way every run.
+3. The **executor** fetches matching entries with a SQL filter on kind and time range, then ranks them by topic with the retriever's embeddings.
+4. The **answer writer** (local LLM) writes a one- or two-sentence reply citing entries by ID.
+5. The **verifier** drops any reply that cites an entry the executor didn't return, and falls back to a template answer. The ranked list is shown either way.
 
 ```mermaid
 flowchart LR
-    H[chrome.history] -->|sync on open| P[Side panel<br/>React UI + orchestrator]
-    SW[Service worker] -->|opens panel| P
-    P <-->|pages + vectors| DB[(IndexedDB)]
-    P <-->|messages| W
-    subgraph W[Model worker]
-        R[Retriever<br/>transformers.js, int8 ONNX]
-        L[Reply LLM<br/>WebLLM, Qwen3-1.7B]
+    subgraph Chrome
+        CS[Content script<br/>Readability text] --> BG[Background worker<br/>history backfill]
+        SP[Side panel<br/>chat UI]
     end
-    HF[Hugging Face] -.->|LLM weights, once| L
+    BG -->|POST /ingest| API
+    SP -->|POST /ask| API
+    subgraph Local backend [FastAPI on localhost:8000]
+        API[Routes] --> P[Parser<br/>rules / LLM / tagger]
+        P -->|Intent| X[Executor<br/>SQL filter + topic rank]
+        X --> W[Answer writer<br/>local Qwen]
+        W --> V[Verifier<br/>cites only returned IDs]
+        X <--> DB[(SQLite + sqlite-vec)]
+        E[Retriever<br/>embedder] --> DB
+    end
 ```
-
-## The two models
-
-| Model | What it is | Trained by us | Where it comes from |
-| --- | --- | --- | --- |
-| Retriever | all-MiniLM-L6-v2 (22M params), fine-tuned on ORCAS click data rewritten into conversational questions | Yes | Bundled in the extension as int8 ONNX, about 23 MB |
-| Reply LLM | Qwen3-1.7B, 4-bit, thinking mode off | No, used as is | Weights downloaded once from Hugging Face (about 1 GB), then cached |
-
-The retriever is the only model we train. The LLM's job is narrow: pick from 10 titles and write a sentence or two.
-
-## Data: from Chrome history to retriever input
-
-The retriever was trained on one string per page, `title | url`, for example:
-
-```text
-Best Budget Laptops 2026 | rtings.com/laptop
-```
-
-The extension turns each Chrome history entry into that exact string with `toEntryText(title, url)` in `packages/core/entryText.ts`. Its output must match the Python code that built the training set byte for byte, and a golden-file test enforces this.
-
-Rules applied at sync time:
-
-- **One page per normalized URL.** Many visits to a URL fold into one entry. The page id is a hash of the normalized URL.
-- **Google searches** (`google.com/search?q=…`) are stored as `kind: "search"`, and the extracted query text is embedded.
-- **Empty or generic titles** ("Untitled", "Home") fall back to words from the URL path.
-- **Skipped entirely:** `chrome://`, `chrome-extension://`, `about:`, `file://`, `localhost`, new-tab pages, and sign-in or redirect URLs.
-- **Title changes** trigger re-embedding of that page.
 
 ## Repo layout
 
 ```text
-breadcrumbs/
-  extension/                 WXT + React + TypeScript
-    entrypoints/
-      background.ts          service worker: opens the side panel, nothing else
-      sidepanel/             React UI and orchestration (sync, rank, verify, render)
-    workers/model.worker.ts  all inference: retriever + reply LLM
-    public/models/           exported retriever (ONNX + tokenizer + retriever.json)
-                             and the bundled WebLLM model library (.wasm)
-  packages/core/             pure TypeScript, no chrome.* calls, fully unit-tested
-    entryText.ts             toEntryText, URL normalization, noise filter
-    rank.ts                  dot-product scoring, top-K, no-match threshold
-    prompt.ts                LLM prompt builder
-    verify.ts                citation verifier
-    history-source.ts        HistorySource interface
-  fixtures/
-    seed_history.json        synthetic history for demos and tests
-    golden/                  Python-generated entry texts and embeddings for parity tests
-  scripts/
-    export_retriever.py      fine-tuned model → int8 ONNX in extension/public/models/
+extension/      Daniel   WXT + React + TypeScript: background backfill, content script, side panel
+backend/        Daniel   FastAPI, Pydantic, SQLite + sqlite-vec, ingest, executor, delete, verifier
+ml/             Aditya   retriever, parsers, LLM client, answer writer, training and model eval
+fixtures/       shared   hand-written seed history and dev / held-back question sets
+eval/           shared   evaluation harness and pass bars
+tests/mutants/  shared   deliberately wrong builds the test suite must catch
+scripts/        shared   demo-check, fixture hash check
+docs/           shared   time-phrase rules, decision log, design specs and plans
 ```
 
-`HistorySource` has two implementations: one reads `chrome.history`, the other loads `fixtures/seed_history.json`. Demo mode and every test use the fixture, so real history is never needed for development or grading.
+Each owner's area has its own `CLAUDE.md` for coding agents. The root `CLAUDE.md` lists the invariants every change must keep.
 
 ## Tech stack
 
 | Layer | Choice |
 | --- | --- |
-| Extension framework | WXT 0.21.x (Manifest V3, Vite 8) |
-| Language | TypeScript 6 |
-| UI | React, Tailwind CSS |
-| Retriever runtime | Transformers.js 4.x (`@huggingface/transformers`), WASM backend |
-| Reply LLM runtime | WebLLM 0.2.85 (`@mlc-ai/web-llm`), WebGPU, in a Web Worker |
-| Storage | Dexie 4 over IndexedDB |
-| Package manager | Bun |
-| Tests | Vitest (unit), Playwright (end-to-end against the built extension) |
-| Model export | Python with uv, sentence-transformers, Hugging Face Optimum |
-| CI | GitHub Actions: tests, then `wxt zip` |
-
-WebLLM and Transformers.js are pinned to exact versions because the model files and runtimes must match. Upgrade them only on purpose, and rerun the parity tests when you do.
+| Extension | WXT 0.21 (Manifest V3), React 19, TypeScript 6, Mozilla Readability |
+| Backend | Python 3.12, FastAPI, Pydantic v2, Uvicorn |
+| Storage | SQLite (Python `sqlite3`) with sqlite-vec for vectors |
+| Retriever | sentence-transformers; stock all-MiniLM-L6-v2 until the fine-tuned model lands |
+| Reply LLM | Local Qwen; the runtime (Ollama, MLX-LM or llama.cpp) is decided in `ml/CLAUDE.md` |
+| API client | TypeScript types generated from the backend's OpenAPI schema (openapi-typescript) |
+| Package managers | uv (Python workspace: `backend`, `ml`), Bun (extension) |
+| Tests | pytest, Vitest |
+| CI | GitHub Actions: tests, fixture hashes, OpenAPI drift, extension build |
 
 ## Getting started
 
-Requirements: Bun, Chrome 113 or later with WebGPU, and Python with uv (only for exporting the retriever).
+Requirements: [uv](https://docs.astral.sh/uv/), [Bun](https://bun.sh), and Chrome 116 or later (side panel API).
 
 ```bash
+# Backend
+uv sync --all-packages
+cp backend/.env.example backend/.env
+uv run uvicorn app.main:app --app-dir backend     # http://localhost:8000/health
+
+# Extension
+cd extension
 bun install
-bun run dev        # opens Chrome with the extension loaded; the panel reloads on save
-bun run test       # Vitest unit tests for packages/core and the extension
-bun run build      # production build in extension/.output/
-bun run zip        # store-ready zip via wxt zip
+bun run build                                     # or: bun run dev
 ```
 
-To export a newly trained retriever:
+Load the extension: open `chrome://extensions`, turn on Developer mode, click **Load unpacked**, and pick `extension/.output/chrome-mv3`. Click the toolbar icon to open the side panel. The manifest has a fixed `key`, so the extension id matches `EXTENSION_ORIGIN` in `backend/.env.example`.
+
+Other commands:
 
 ```bash
-uv run scripts/export_retriever.py --model path/to/fine-tuned-model
+uv run pytest                                     # Python tests (backend + ml + scripts)
+cd extension && bun run test && bun run typecheck # extension tests
+DB_PATH=$PWD/data/demo.db uv run python -m app.seed --reset   # seed a separate demo DB (refuses to wipe real history)
+./scripts/demo-check                              # seed, then held-back eval with replayed LLM responses
+uv run python backend/scripts/export_openapi.py && (cd extension && bun run gen:api)   # after API changes
 ```
 
-This writes the int8 ONNX file, tokenizer and `retriever.json` (version tag, pooling, normalization, max length) into `extension/public/models/history-retriever/`. Bump the version tag in `retriever.json` whenever the model changes; the extension re-embeds all pages when it sees a new version. Until the fine-tuned model is exported, the same code runs stock all-MiniLM-L6-v2.
+Configuration lives in `backend/.env`. `PARSER`, `EMBEDDER` and `LLM_MODE` select the model implementations; see `backend/CLAUDE.md`.
 
-### Demo mode
+## API
 
-Turn on "Demo history" in settings, or start the dev build with `DEMO=1`. The panel loads `fixtures/seed_history.json` instead of real history and shows a "Demo history" badge.
+| Method and path | Purpose |
+| --- | --- |
+| `GET /health` | `{status, embedder_version, parser, llm_mode}` |
+| `POST /ingest` | `{entries: [{kind, url, query?, title, visit_time, text?, source}]}` → `{ids}` |
+| `POST /ask` | `{question, tz, now?}` → `{question, intent, results, answer, mode, timings_ms}` |
+| `DELETE /entries/{id}` | Removes the entry, and its vectors when no other entry uses the page |
 
-## Using the extension
+`mode` is `llm`, `template` (LLM off, unavailable or rejected by the verifier) or `no-match`. The full schema is in `backend/openapi.json`.
 
-1. Click the toolbar icon to open the side panel.
-2. On first run, grant history access and click **Index my history**. The first index takes a few minutes; later opens only embed new pages.
-3. Optionally click **Download reply model** (about 1 GB, one time). Results work without it.
-4. Ask a question. The ranked list appears immediately, and the reply streams in above it.
-5. Click a citation chip or a row to open the page.
+## Evaluation
 
-Settings: reply model on or off, domains to exclude, re-index, clear all stored data, and a debug mode that shows each row's raw score and the exact entry text the retriever saw.
+The core claim: starting from a seeded history and a fixed "now", the parser labels held-back questions with the correct Intent at or above the pass bars, the executor returns exactly the expected entries for every correct Intent, and no answer cites an entry that isn't in the database. The pass bars are in `eval/pass_bars.toml`, the time rules in `docs/time-rules.md`, and the wrong builds the suite must catch in `tests/mutants/README.md`. Fixtures and expected answers are written by hand, and the held-back questions are never shown to coding agents.
 
-## Output contract
+## Privacy
 
-Every question produces one object. The UI renders it, and the evaluation harness logs it.
+- Permissions: `history`, `sidePanel`, `storage`. Host permissions: `http://localhost:8000/*` (the backend) and `<all_urls>` (to read page text).
+- Everything is stored in a local SQLite file (`data/breadcrumbs.db`), and all inference runs locally.
+- Only synthetic seed data is committed or demoed. Real-history mode runs only on your own machine.
 
-```json
-{
-  "question": "that show I was watching last night",
-  "mode": "llm",
-  "results": [
-    {"rank": 1, "pageId": "p_9f3a", "kind": "visit", "title": "The Bear | Watch on Hulu",
-     "url": "https://www.hulu.com/watch/...", "lastVisit": "2026-10-27T21:14:00-05:00",
-     "visitCount": 3, "score": 0.78}
-  ],
-  "reply": {"text": "You were watching The Bear on Hulu [1].", "cited": ["p_9f3a"]},
-  "timingsMs": {"embed": 12, "search": 3, "llmFirstToken": 900, "llmTotal": 2400},
-  "retrieverVersion": "minilm-ft-v1"
-}
-```
+## Team
 
-`mode` is `llm`, `retriever-only` (LLM off, unavailable or failed) or `no-match` (top score below the threshold tuned on dev questions). The timing values in this example are illustrative, not measurements.
+| Name | Responsibility |
+| --- | --- |
+| Daniel Lam | Chrome extension, ingestion, SQLite database, vector index, executor, deletion, verifier, and the data formats for the seed history and fixtures |
+| Aditya Ramaswamy | Retriever and NLP: parsers, local LLM, answer writer, and the trained-model track (training-data generator, training and evaluation) |
 
-## Storage and caching
+Shared: the Intent schema, the time-phrase rules, the seed history contents, the expected answers, and the evaluation harness.
 
-| Store | Key | Holds |
-| --- | --- | --- |
-| `pages` | `pageId` | kind, url, title, entryText, lastVisitTime, visitCount, embedding (Float32Array), retrieverVersion, needsEmbed |
-| `meta` | `key` | lastSyncTime, retrieverVersion, settings |
+## Dependencies and attribution
 
-The LLM is downloaded once and never again unless we change its pinned version:
-
-- The retriever ships inside the extension and is never downloaded.
-- LLM weights download only from the first-run screen, never in the middle of a question. On each panel open the worker checks the cache and loads from it, in parallel with history sync.
-- The extension requests `unlimitedStorage` and calls `navigator.storage.persist()` so Chrome does not evict the weights.
-- The cache belongs to the extension id. The manifest `key` is fixed so the id, and therefore the cache, stays the same across rebuilds, machines and the published version.
-
-## Privacy and permissions
-
-Permissions: `history`, `sidePanel`, `storage`, `unlimitedStorage`, `favicon`. There are no host permissions and no content scripts; the retriever only needs titles and URLs.
-
-Nothing leaves the machine except the one-time download of LLM weights. Questions, history and vectors stay in IndexedDB. "Clear all data" removes IndexedDB and the model cache.
-
-## Rules for contributors and coding agents
-
-These invariants hold everywhere. A change that breaks one is rejected, even if tests pass.
-
-1. **No remote code.** Every executable file (JS, ONNX Runtime `.wasm`, WebLLM model library `.wasm`) ships in the package. Only LLM weight files are fetched at runtime. Chrome Web Store rules require this.
-2. **No network calls for inference.** No server, no hosted API, no telemetry.
-3. **`packages/core` never calls `chrome.*`** and never reads the clock or randomness; inputs such as the current time are passed in. This keeps it deterministic and testable.
-4. **`toEntryText` must match training.** Do not change it without regenerating `fixtures/golden/` from the Python side and passing the parity test.
-5. **The LLM can only cite pages the retriever returned.** The verifier drops any reply that cites something else and falls back to the ranked list.
-6. **All inference runs in the model worker.** The side panel only renders and orchestrates.
-7. **Fixtures, golden files and expected answers are written by humans.** Agents do not edit `fixtures/`; propose changes instead.
-8. **Never weaken a test to make it pass.**
-
-## Testing
-
-- `toEntryText` against the Python golden file.
-- Embedding parity: TypeScript embeddings reach cosine similarity of at least 0.99 with the Python ones.
-- Retrieval parity: dev-set Recall@5 in the extension lands within about 1 point of the Python evaluation.
-- Verifier: rejects out-of-range and duplicate citations, accepts valid ones.
-- Sync: a deleted Chrome visit removes its page and vector; a renamed title triggers re-embedding.
-- End to end on the seed fixture: fixed questions return expected pages in the top 5, with the LLM replaced by recorded replies so runs are deterministic.
-
-## Roadmap
-
-1. WXT skeleton: side panel opens from the toolbar icon.
-2. History sync into IndexedDB, from Chrome or the seed fixture.
-3. Retrieval with stock MiniLM: questions return ranked results. First demoable build.
-4. Fine-tuned retriever swapped in; parity tests pass.
-5. Reply model: WebLLM loads, JSON reply renders with citation chips, verifier in place.
-6. Polish: first-run flow, error states, settings, debug mode.
-
-Not yet in scope: date and time phrases in questions ("last week", "2 days ago"). Time adjustment will slot in between scoring and the top-K cut in `rank.ts` without changing the UI or storage.
+Chrome Extensions API (Manifest V3), WXT, React, Mozilla Readability, Python, FastAPI, Pydantic, Uvicorn, SQLite, sqlite-vec, sentence-transformers (all-MiniLM-L6-v2), Qwen, Hugging Face transformers, datasets and seqeval (model track), pytest, Vitest, openapi-typescript, uv and Bun. The parser rules, executor, verifier, fixtures and evaluation harness are our own work.

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./fixtures/questions/heldback/**)",
+      "Edit(./fixtures/**)",
+      "Write(./fixtures/**)",
+      "Edit(./tests/mutants/**)",
+      "Write(./tests/mutants/**)",
+      "Edit(./eval/pass_bars.toml)"
+    ]
+  }
+}
