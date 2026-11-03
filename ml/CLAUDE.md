@@ -83,7 +83,7 @@ The backend embeds this text for each page: first `title | url-without-scheme` (
 
 ## Q&A: decisions to make with Aditya
 
-**Instructions for Claude:** When Aditya starts a session here and any item below still has an open decision, walk him through the first open item before other work, unless he asks to skip it. Ask one question at a time. Offer 2–4 options with trade-offs and a recommendation based on this repo and his MacBook. Then write his answer to `docs/decisions/NN-<topic>.md` and replace `(open)` below with a link to that file. If an answer changes a shared contract (Intent, chunking, `vec_chunks` dimension), say so and tell him to confirm it with Daniel.
+**Instructions for Claude:** Before anything else in Aditya's first session, read `docs/handoff/2026-11-03-reasoning-handoff.md` with him. It covers the Claude Code setup (superpowers and impeccable pinned in this repo), what real history shows, and where reasoning could plug in. When Aditya starts a session here and any item below still has an open decision, walk him through the first open item before other work, unless he asks to skip it. Ask one question at a time. Offer 2–4 options with trade-offs and a recommendation based on this repo and his MacBook. Then write his answer to `docs/decisions/NN-<topic>.md` and replace `(open)` below with a link to that file. If an answer changes a shared contract (Intent, chunking, `vec_chunks` dimension), say so and tell him to confirm it with Daniel.
 
 1. **LLM runtime.** How does the local Qwen model run next to the backend?
    - **Ollama:** easiest setup and an OpenAI-compatible API, but a separate daemon.

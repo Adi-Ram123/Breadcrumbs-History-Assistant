@@ -19,3 +19,8 @@ extension/.wxt/
 
 # OS / tooling
 .DS_Store
+
+# Claude Code session scratch (brainstorm server, execution ledgers, critiques).
+# Decisions worth keeping are copied to docs/superpowers/records/.
+.superpowers/
+.impeccable/

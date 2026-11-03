@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Answer */
+        post: operations["answer_answer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ask": {
         parameters: {
             query?: never;
@@ -83,6 +100,26 @@ export interface components {
             /** Text */
             text: string;
         };
+        /** AnswerRequest */
+        AnswerRequest: {
+            /** Ask Id */
+            ask_id: string;
+        };
+        /** AnswerResponse */
+        AnswerResponse: {
+            answer: components["schemas"]["Answer"];
+            /** Fallback Reason */
+            fallback_reason: ("llm_off" | "rejected_citation" | "llm_error") | null;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "llm" | "template";
+            /** Timings Ms */
+            timings_ms: {
+                [key: string]: number;
+            };
+        };
         /** AskRequest */
         AskRequest: {
             /** Now */
@@ -92,23 +129,31 @@ export interface components {
             /** Tz */
             tz: string;
         };
-        /** AskResponse */
+        /**
+         * AskResponse
+         * @description Intent and rows, fast. The LLM sentence comes later from POST /answer with `ask_id`.
+         */
         AskResponse: {
-            answer: components["schemas"]["Answer"] | null;
+            /** Ask Id */
+            ask_id: string;
+            /** History Start */
+            history_start: string | null;
             intent: components["schemas"]["Intent"];
             /**
              * Mode
              * @enum {string}
              */
-            mode: "llm" | "template" | "no-match";
+            mode: "results" | "no-match";
             /** Question */
             question: string;
             /** Results */
             results: components["schemas"]["Result"][];
+            template_answer: components["schemas"]["Answer"] | null;
             /** Timings Ms */
             timings_ms: {
                 [key: string]: number;
             };
+            window_counts: components["schemas"]["WindowCounts"] | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -119,6 +164,10 @@ export interface components {
         HealthResponse: {
             /** Embedder Version */
             embedder_version: string;
+            /** Entry Count */
+            entry_count: number;
+            /** History Start */
+            history_start: string | null;
             /** Llm Mode */
             llm_mode: string;
             /** Parser */
@@ -235,6 +284,16 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /**
+         * WindowCounts
+         * @description Stored entries of each kind inside a time window, ignoring the topic.
+         */
+        WindowCounts: {
+            /** Search */
+            search: number;
+            /** Visit */
+            visit: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -244,6 +303,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    answer_answer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     ask_ask_post: {
         parameters: {
             query?: never;

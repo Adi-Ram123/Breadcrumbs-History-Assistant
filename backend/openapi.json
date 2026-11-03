@@ -22,6 +22,65 @@
         "title": "Answer",
         "type": "object"
       },
+      "AnswerRequest": {
+        "properties": {
+          "ask_id": {
+            "title": "Ask Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ask_id"
+        ],
+        "title": "AnswerRequest",
+        "type": "object"
+      },
+      "AnswerResponse": {
+        "properties": {
+          "answer": {
+            "$ref": "#/components/schemas/Answer"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "llm_off",
+                  "rejected_citation",
+                  "llm_error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          },
+          "mode": {
+            "enum": [
+              "llm",
+              "template"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "timings_ms": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Timings Ms",
+            "type": "object"
+          }
+        },
+        "required": [
+          "answer",
+          "mode",
+          "fallback_reason",
+          "timings_ms"
+        ],
+        "title": "AnswerResponse",
+        "type": "object"
+      },
       "AskRequest": {
         "properties": {
           "now": {
@@ -54,24 +113,30 @@
         "type": "object"
       },
       "AskResponse": {
+        "description": "Intent and rows, fast. The LLM sentence comes later from POST /answer with `ask_id`.",
         "properties": {
-          "answer": {
+          "ask_id": {
+            "title": "Ask Id",
+            "type": "string"
+          },
+          "history_start": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Answer"
+                "format": "date-time",
+                "type": "string"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "History Start"
           },
           "intent": {
             "$ref": "#/components/schemas/Intent"
           },
           "mode": {
             "enum": [
-              "llm",
-              "template",
+              "results",
               "no-match"
             ],
             "title": "Mode",
@@ -88,20 +153,43 @@
             "title": "Results",
             "type": "array"
           },
+          "template_answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Answer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "timings_ms": {
             "additionalProperties": {
               "type": "number"
             },
             "title": "Timings Ms",
             "type": "object"
+          },
+          "window_counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WindowCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
+          "ask_id",
           "question",
           "intent",
           "results",
-          "answer",
+          "template_answer",
           "mode",
+          "window_counts",
+          "history_start",
           "timings_ms"
         ],
         "title": "AskResponse",
@@ -126,6 +214,22 @@
             "title": "Embedder Version",
             "type": "string"
           },
+          "entry_count": {
+            "title": "Entry Count",
+            "type": "integer"
+          },
+          "history_start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History Start"
+          },
           "llm_mode": {
             "title": "Llm Mode",
             "type": "string"
@@ -143,7 +247,9 @@
           "status",
           "embedder_version",
           "parser",
-          "llm_mode"
+          "llm_mode",
+          "entry_count",
+          "history_start"
         ],
         "title": "HealthResponse",
         "type": "object"
@@ -439,6 +545,25 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WindowCounts": {
+        "description": "Stored entries of each kind inside a time window, ignoring the topic.",
+        "properties": {
+          "search": {
+            "title": "Search",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "search",
+          "visit"
+        ],
+        "title": "WindowCounts",
+        "type": "object"
       }
     }
   },
@@ -448,6 +573,44 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/answer": {
+      "post": {
+        "operationId": "answer_answer_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Answer"
+      }
+    },
     "/ask": {
       "post": {
         "operationId": "ask_ask_post",
