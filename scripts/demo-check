@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Demo step 1: reset the database to the seed history, then run the held-back
+# questions with recorded LLM responses and print scores per stage.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+# Separate demo database: never touches the history the extension collected.
+export DB_PATH="${DB_PATH:-$PWD/data/demo.db}"
+uv run python -m app.seed --reset
+uv run python eval/run.py --set heldback --replay

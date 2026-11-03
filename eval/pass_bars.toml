@@ -1,0 +1,19 @@
+# Pass bars from the Final Project Proposal. Human-owned: change only with a
+# docs/decisions/ entry that records the reason and the evidence.
+
+[label]
+intent_kind_time_exact = 0.90   # exact match on kind and time range, held-back set
+intent_topic_exact = 0.80
+
+[fetch]
+fetch_exact_set = 1.00          # exact ID-set match given the expected Intent
+
+[end_to_end]
+e2e_recall_min = 0.85           # precision is reported, recall must reach this
+
+[answer]
+invented_citations_max = 0      # cited IDs missing from the database
+
+[swap_rule]                     # trained parser vs LLM parser, one held-back run
+swap_rule_max_accuracy_gap_points = 2
+swap_rule_max_latency_ms = 200  # per question, offline, laptop CPU
