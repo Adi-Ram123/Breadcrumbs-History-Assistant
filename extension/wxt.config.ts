@@ -3,6 +3,8 @@ import { defineConfig } from 'wxt';
 // Extension id: pengpbbmpcbooclpejbchalnjamfgbmm (derived from `key`; regenerate with scripts/gen-key.sh).
 // backend/.env EXTENSION_ORIGIN must be chrome-extension://pengpbbmpcbooclpejbchalnjamfgbmm
 export default defineConfig({
+  // Not a dot-folder, so the macOS "Load unpacked" picker shows it.
+  outDir: 'dist',
   modules: ['@wxt-dev/module-react'],
   manifest: {
     name: 'Breadcrumbs: History Assistant',

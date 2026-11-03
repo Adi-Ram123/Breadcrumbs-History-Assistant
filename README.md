@@ -85,7 +85,7 @@ bun install
 bun run build                                     # or: bun run dev
 ```
 
-Load the extension: open `chrome://extensions`, turn on Developer mode, click **Load unpacked**, and pick `extension/.output/chrome-mv3`. Click the toolbar icon to open the side panel. The manifest has a fixed `key`, so the extension id matches `EXTENSION_ORIGIN` in `backend/.env.example`.
+Load the extension: open `chrome://extensions`, turn on Developer mode, click **Load unpacked**, and pick `extension/dist/chrome-mv3`. Click the toolbar icon to open the side panel. The manifest has a fixed `key`, so the extension id matches `EXTENSION_ORIGIN` in `backend/.env.example`.
 
 Other commands:
 

@@ -31,7 +31,7 @@ bun install
 bun run dev        # Chrome with the extension loaded, reloads on save
 bun run test       # Vitest
 bun run typecheck
-bun run build      # extension/.output/chrome-mv3
+bun run build      # extension/dist/chrome-mv3
 bun run gen:api    # regenerate lib/api/schema.d.ts from backend/openapi.json
 ```
 

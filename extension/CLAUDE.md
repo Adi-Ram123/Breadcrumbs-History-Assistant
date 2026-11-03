@@ -29,4 +29,4 @@ Bun, WXT 0.21, React 19, TypeScript 6, Vitest, openapi-typescript, `@mozilla/rea
 - The content script must never throw into the page and must not send anything except to the background.
 - URL normalization and ids belong to the backend (`backend/app/index/urls.py`); do not duplicate them here.
 - No remote code: everything executable ships in the package.
-- Manual check after UI or manifest changes: `bun run build`, load `extension/.output/chrome-mv3` unpacked in `chrome://extensions`, and click the icon.
+- Manual check after UI or manifest changes: `bun run build`, load `extension/dist/chrome-mv3` unpacked in `chrome://extensions`, and click the icon.
