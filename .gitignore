@@ -1,0 +1,21 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local data and secrets
+data/
+backend/.env
+
+# Model weights (see ml/CLAUDE.md Q&A item 7)
+ml/models/*
+!ml/models/.gitkeep
+
+# Extension
+extension/node_modules/
+extension/.output/
+extension/.wxt/
+
+# OS / tooling
+.DS_Store

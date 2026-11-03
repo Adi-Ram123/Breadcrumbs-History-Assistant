@@ -1,0 +1,11 @@
+# Virtual uv workspace root: no [project] here, only members.
+[tool.uv.workspace]
+members = ["backend", "ml"]
+
+[dependency-groups]
+dev = ["pytest", "httpx"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests", "ml/tests", "scripts/tests"]
+addopts = "--import-mode=importlib"
+pythonpath = ["scripts", "backend/tests"]
