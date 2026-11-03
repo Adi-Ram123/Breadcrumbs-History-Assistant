@@ -1,0 +1,209 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Side panel thread</title>
+<style>
+ body{margin:0;padding:24px;background:#1c1c1f;color:#e8e8ea;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Inter",sans-serif}
+ h2{margin:0 0 6px;font-size:22px} h3{margin:0 0 6px;font-size:15px} .subtitle{color:#a8a8ad;margin:0 0 20px;max-width:1100px}
+ .cards{display:grid;gap:16px} .card{background:#2c2d2e;border:1px solid #3a3b3d;border-radius:10px;overflow:hidden}
+ .card-body{padding:12px 16px 16px} .card-body p{color:#c8c8cc;margin:0}
+ .options{display:grid;gap:10px;max-width:1100px} .option{display:flex;gap:12px;background:#2c2d2e;border:1px solid #3a3b3d;border-radius:10px;padding:12px 14px}
+ .option .letter{flex:none;width:24px;height:24px;border-radius:6px;background:#3a3b3d;display:grid;place-items:center;font-weight:600} .option p{margin:0;color:#c8c8cc}
+ code{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+</style></head><body>
+<h2>Step 2: the thread</h2>
+<p class="subtitle">The status component is gone from the top bar. These frames show a session three questions in. Everything scrolls between the top bar and the composer, both of which stay put. Diagnostics are off.</p>
+<style>
+  .bc { --ground:#f8f8f8; --surface:#fff; --raised:#eeeeee; --border:#e6e6e6; --rule:#f0f0f0; --control:#d4d4d4;
+        --text:#0a0a0a; --muted:#6b6b6b; --primary:#141414; --hue:#1d5fbf; --hue-bg:#eaf0fa;
+        --positive:#2e7d32; --negative:#c4242a; --cite-hover:#dce6f6; --tick-muted:#9a9a9a; --icon-disabled:#8a8a8a; --primary-ink:#ffffff; --pop-shadow:0 8px 24px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.06); }
+  .bc, .bc * { box-sizing:border-box; }
+  .bc.cards { grid-template-columns:repeat(auto-fit, minmax(384px, 1fr)); align-items:start; }
+  .bc .card-image { aspect-ratio:auto; padding:12px; display:block; background:transparent; }
+  .bc .card-body h3 { margin-top:0; }
+
+  .panel { width:360px; height:760px; margin:0 auto; display:flex; flex-direction:column; overflow:hidden; position:relative;
+           background:var(--ground); color:var(--text); border:1px solid var(--border); border-radius:8px;
+           font:400 14px/20px -apple-system, BlinkMacSystemFont, "Inter Variable", "Inter", sans-serif; font-variant-numeric:tabular-nums; text-align:left; text-wrap:pretty; }
+  .panel ::selection { background:var(--hue-bg); color:var(--text); }
+  .panel :where(button, a) { font:inherit; color:inherit; }
+  .panel :where(button) { background:none; border:0; padding:0; cursor:pointer; }
+  .panel a { text-decoration:none; }
+  .panel :focus-visible { outline:2px solid var(--hue); outline-offset:2px; border-radius:4px; }
+
+  .top { flex:none; height:48px; display:flex; align-items:center; gap:8px; padding:0 6px 0 16px; }
+  .name { font-weight:600; }
+  .bstat { margin-left:auto; display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+  .dot { width:6px; height:6px; border-radius:50%; background:var(--positive); }
+  .iconbtn { width:32px; height:32px; display:grid; place-items:center; border-radius:6px; color:var(--muted); }
+  .iconbtn:hover, .iconbtn[aria-expanded="true"] { background:var(--raised); color:var(--text); }
+
+  .thread { flex:1; min-height:0; display:flex; flex-direction:column; justify-content:flex-end; gap:16px; padding:0 12px 12px; overflow:hidden; }
+  .card2 + .q { margin-top:16px; }
+  .q { align-self:flex-end; max-width:85%; background:var(--raised); padding:8px 12px; border-radius:8px; }
+  .card2 { flex:none; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
+  .ans { padding:14px 16px 10px; font-size:15px; line-height:22px; margin:0; }
+  .ans + .sub { margin-top:-6px; }
+  .sub { padding:0 16px 12px; margin:0; color:var(--muted); }
+  .cite { display:inline-grid; place-items:center; min-width:20px; height:20px; padding:0 5px; margin:0 1px; border-radius:4px;
+          background:var(--hue-bg); color:var(--hue); font-size:12px; font-weight:500; vertical-align:0; }
+  .cite:hover { background:var(--cite-hover); }
+  .why { display:flex; gap:6px; align-items:flex-start; padding:0 16px 12px; margin:0; font-size:12px; line-height:16px; color:var(--muted); }
+  .why svg { flex:none; margin-top:0; }
+
+  /* how-it-was-read: caption + trail */
+  .read { margin:0 16px 10px; }
+  .cap { font-size:12px; line-height:16px; color:var(--muted); margin-bottom:6px; }
+  .cap b { font-weight:500; color:var(--text); }
+  .track { position:relative; height:30px; }
+  .track::before { content:""; position:absolute; left:0; right:0; top:20px; height:2px; background:var(--raised); border-radius:1px; }
+  .tick { position:absolute; top:15px; width:2px; height:12px; margin-left:-1px; background:var(--hue); border-radius:1px; }
+  .tick.wide { width:4px; margin-left:-2px; }
+  .tick.grey { background:var(--tick-muted); }
+  .tlab { position:absolute; top:0; font-size:11px; line-height:12px; font-weight:500; color:var(--hue); transform:translateX(-50%); white-space:nowrap; }
+  .tlab.r { transform:translateX(-100%); }
+  .tlab.grey { color:var(--muted); }
+  .ends { display:flex; justify-content:space-between; font-size:11px; line-height:14px; color:var(--muted); }
+  .days { display:grid; grid-template-columns:repeat(7,1fr); }
+  .days span { font-size:11px; line-height:14px; color:var(--muted); }
+  .seg { position:absolute; top:16px; height:10px; border-radius:2px; background:var(--raised); }
+
+  .rows { list-style:none; margin:0; padding:0 0 4px; }
+  .rows li + li { border-top:1px solid var(--rule); }
+  .row { display:flex; align-items:center; gap:10px; min-height:48px; padding:6px 12px 6px 16px; }
+  .row:hover { background:var(--ground); }
+  .rank { flex:none; display:grid; place-items:center; width:20px; height:20px; border-radius:4px; font-size:12px; font-weight:500; color:var(--muted); }
+  .cited .rank { background:var(--hue-bg); color:var(--hue); }
+  .tx { flex:1; min-width:0; }
+  .t { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .m { font-size:12px; line-height:16px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .go { flex:none; color:var(--muted); }
+
+  .reasks { display:flex; flex-wrap:wrap; gap:8px; padding:2px 16px 16px; }
+  .reask { display:inline-flex; align-items:center; gap:6px; min-height:32px; padding:0 12px; border:1px solid var(--control); border-radius:6px; background:var(--surface); font-weight:500; }
+  .reask:hover { background:var(--ground); }
+
+  .writing { display:flex; align-items:center; gap:8px; padding:14px 16px 12px; color:var(--muted); }
+  .writing .bar { flex:1; }
+  .bar { display:block; height:12px; border-radius:3px; background:var(--raised); }
+  .elapsed { font-size:12px; }
+
+  .diag { margin:0 16px 12px; padding:4px 10px; background:var(--ground); border-radius:6px; font-size:12px; }
+  .diag div { display:flex; justify-content:space-between; gap:12px; min-height:26px; align-items:center; }
+  .diag dt { color:var(--muted); } .diag dd { margin:0; text-align:right; }
+  .dline { display:flex; align-items:center; gap:6px; width:calc(100% - 16px); margin:0 8px; padding:8px; border-top:1px solid var(--rule); font-size:12px; color:var(--muted); text-align:left; }
+  .dline[aria-expanded="true"] .chev { transform:rotate(90deg); }
+
+  .composer { flex:none; margin:0 12px 12px; display:flex; align-items:flex-end; gap:8px; padding:6px 6px 6px 12px;
+              background:var(--surface); border:1px solid var(--control); border-radius:8px; }
+  .composer .ph { flex:1; padding:6px 0; color:var(--muted); }
+  .send { flex:none; width:32px; height:32px; display:grid; place-items:center; border-radius:6px; background:var(--raised); color:var(--icon-disabled); }
+  .send.stop { background:var(--primary); color:var(--primary-ink); }
+
+  .menu { position:absolute; top:44px; right:8px; width:236px; padding:6px; background:var(--surface); border:1px solid var(--border); border-radius:8px;
+          box-shadow:var(--pop-shadow); z-index:2; }
+  .mi { display:flex; align-items:center; gap:10px; width:100%; min-height:36px; padding:0 10px; border-radius:6px; text-align:left; }
+  .mi:hover { background:var(--ground); }
+  .mi .k { margin-left:auto; font-size:12px; color:var(--muted); }
+  .msep { height:1px; background:var(--rule); margin:4px 2px; }
+  .sw { margin-left:auto; width:30px; height:18px; border-radius:9px; background:var(--primary); position:relative; flex:none; }
+  .sw::after { content:""; position:absolute; top:2px; left:14px; width:14px; height:14px; border-radius:50%; background:var(--primary-ink); }
+  .mnote { padding:2px 10px 6px 36px; font-size:12px; line-height:16px; color:var(--muted); }
+  .mf { display:flex !important; align-items:center; gap:6px; }
+  .mf .mt { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fav { flex:none; width:14px; height:14px; border-radius:3px; display:grid; place-items:center; font:600 9px/1 system-ui, sans-serif; color:#fff; }
+  .fav.dark { color:#111; }
+  .fav.srch { color:var(--muted); }
+
+
+  /* dark theme: in the extension this block is @media (prefers-color-scheme: dark) on :root */
+  .bc .panel.dark { --ground:#111111; --surface:#1a1a1a; --raised:#262626; --border:#2a2a2a; --rule:#222222; --control:#444444;
+        --text:#f2f2f2; --muted:#a8a8a8; --primary:#f2f2f2; --primary-ink:#111111; --hue:#7aa7ec; --hue-bg:#1c2a40;
+        --cite-hover:#24364f; --tick-muted:#6a6a6a; --icon-disabled:#6f6f6f; --positive:#3fc07a; --negative:#e5566f;
+        --pop-shadow:0 8px 24px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.4); color-scheme:dark; }
+  /* step 3: accessibility + narrow widths */
+  @container (max-width: 280px) { .panel .foldline { flex-wrap:wrap; } .panel .foldline .cap { flex:1 1 100%; } .panel .foldline .srcbtn { margin-left:-8px; } }
+  @container (max-width: 220px) { h1.name { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); } }
+
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+  .panel { container-type:inline-size; }
+  .panel svg, .reask svg, .why svg { flex:none; }
+  h1.name { font-size:14px; line-height:20px; font-weight:600; margin:0; }
+  .q { font:inherit; margin:0; }
+  .cite { position:relative; }
+  .cite::after { content:""; position:absolute; inset:-2px; }
+  .composer textarea { flex:1; min-width:0; border:0; outline:0; resize:none; padding:6px 0; font:inherit; color:var(--text); background:transparent; }
+  .composer textarea::placeholder { color:var(--muted); opacity:1; }
+  .panel .composer textarea:focus, .panel .composer textarea:focus-visible { outline:none; }
+  .ends span, .elapsed, .reask { white-space:nowrap; }
+  @container (max-width: 280px) {
+    .t { white-space:normal !important; display:-webkit-box !important; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+    .ends span:nth-child(2), .ends span:nth-child(4) { display:none; }
+    .days span { font-size:0 !important; }
+    .days span::first-letter { font-size:11px; }
+    .bstat, .writing .elapsed { font-size:12px; }
+  }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="m-mark" viewBox="0 0 20 20"><circle cx="4" cy="15" r="2" fill="currentColor"/><circle cx="10" cy="10" r="2" fill="currentColor"/><circle cx="16" cy="5" r="2" fill="currentColor"/></symbol>
+    <symbol id="m-new" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></symbol>
+    <symbol id="m-more" viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1.2" fill="currentColor"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="12.5" cy="8" r="1.2" fill="currentColor"/></symbol>
+    <symbol id="m-send" viewBox="0 0 16 16"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+    <symbol id="m-stop" viewBox="0 0 16 16"><rect x="4.5" y="4.5" width="7" height="7" rx="1.5" fill="currentColor"/></symbol>
+    <symbol id="m-out" viewBox="0 0 16 16"><path d="M6 3.5H3.5v9h9V10M9 3.5h3.5V7M12.5 3.5 7.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+    <symbol id="m-chev" viewBox="0 0 16 16"><path d="m6 4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+    <symbol id="m-redo" viewBox="0 0 16 16"><path d="M12.5 5.5H6a3 3 0 0 0 0 6h4.5M10 3l2.5 2.5L10 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+    <symbol id="m-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M8 7.25v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="5" r=".85" fill="currentColor"/></symbol>
+    <symbol id="m-sync" viewBox="0 0 16 16"><path d="M12.5 6.5A4.75 4.75 0 0 0 3.6 5.2M3.5 9.5a4.75 4.75 0 0 0 8.9 1.3M12.75 3v3.5h-3.5M3.25 13V9.5h3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+  </defs>
+</svg>
+<style>
+  .thread.scroll { justify-content:flex-start; gap:0; padding-top:4px; }
+  .xg { display:flex; flex-direction:column; gap:16px; flex:none; }
+  .xg + .xg { margin-top:32px; }
+  .clamp { padding-bottom:0 !important; margin-bottom:10px !important; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .foldline { display:flex; align-items:center; gap:8px; padding:0 8px 8px 16px; }
+  .foldline .cap { margin:0; flex:1; min-width:0; }
+  .srcbtn { flex:none; display:inline-flex; align-items:center; gap:4px; min-height:32px; padding:0 8px; border-radius:6px; font-size:12px; font-weight:500; color:var(--text); }
+  .srcbtn:hover { background:var(--ground); }
+  .srcbtn[aria-expanded="true"] svg { transform:rotate(90deg); }
+  .more { display:flex; align-items:center; gap:6px; width:100%; min-height:40px; padding:0 16px; border-top:1px solid var(--rule); font-weight:500; text-align:left; }
+  .more:hover { background:var(--ground); }
+  .card2 > .more:last-child { border-radius:0 0 7px 7px; }
+  .more .n { color:var(--muted); font-weight:400; }
+  .jump { position:absolute; left:50%; bottom:68px; transform:translateX(-50%); display:inline-flex; align-items:center; gap:6px; min-height:32px; padding:0 14px;
+          background:var(--surface); border:1px solid var(--border); border-radius:16px; font-size:12px; font-weight:500; z-index:2; }
+  .tick.sm { height:8px; top:17px; }
+</style><svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="m-down" viewBox="0 0 16 16"><path d="M8 3.5v9M4 8.5l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+</defs></svg><div class="cards bc"><div class="card"><div class="card-image"><div class="panel"><div class="top"><svg width="20" height="20" aria-hidden="true"><use href="#m-mark"/></svg><h1 class="name">Breadcrumbs</h1>
+<button class="iconbtn" style="margin-left:auto" aria-label="New chat" title="New chat"><svg width="16" height="16"><use href="#m-new"/></svg></button>
+<button class="iconbtn" aria-label="More" title="More" aria-expanded="false"><svg width="16" height="16"><use href="#m-more"/></svg></button></div><main class="thread scroll" aria-label="Conversation">
+<div class="xg"><h2 class="q">I'm going to Denver next month and I know I looked at some pages about it last week, which ones were they?</h2><article class="card2"><p class="ans">Denver came up on Saturday night: you compared flights on Google Flights <a class="cite" href="#" aria-label="Source 1">1</a> and Kayak <a class="cite" href="#" aria-label="Source 2">2</a> and checked the 10-day forecast <a class="cite" href="#" aria-label="Source 3">3</a>.</p><div class="read"><div class="cap">Read as <b>pages about “denver”</b>, <b>Mon, Oct 26 – Sun, Nov 1</b></div>
+<div class="track" role="img" aria-label="Searched Monday October 26 through Sunday November 1. Cited results Saturday night; other results Monday to Thursday evenings."><span class="tick grey sm" style="left:54.9%"></span><span class="tick grey sm" style="left:54.9%"></span><span class="tick grey sm" style="left:42.7%"></span><span class="tick grey sm" style="left:42.8%"></span><span class="tick grey sm" style="left:25.7%"></span><span class="tick grey sm" style="left:25.8%"></span><span class="tick grey sm" style="left:11.0%"></span><span class="tick wide" style="left:85.1%"></span><span class="tlab" style="left:85.1%">1–3</span></div>
+<div class="days"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div></div><ol class="rows"><li class="cited"><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-label="Source 1.">1</span><span class="tx"><span class="t" style="display:block">Flights from Chicago to Denver | Google Flights</span><span class="m mf"><span class="fav" style="background:#4285f4" aria-hidden="true">G</span><span class="mt">google.com · Sat 10:49 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li><li class="cited"><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-label="Source 2.">2</span><span class="tx"><span class="t" style="display:block">Chicago (ORD) to Denver (DEN) flights | KAYAK</span><span class="m mf"><span class="fav" style="background:#ff690f" aria-hidden="true">K</span><span class="mt">kayak.com · Sat 10:58 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li><li class="cited"><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-label="Source 3.">3</span><span class="tx"><span class="t" style="display:block">Denver, CO 10-Day Weather Forecast | Weather Underground</span><span class="m mf"><span class="fav" style="background:#2b2b2b" aria-hidden="true">W</span><span class="mt">wunderground.com · Sat 10:55 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li></ol>
+<button class="more" aria-expanded="false"><svg width="14" height="14" aria-hidden="true"><use href="#m-chev"/></svg>7 more results <span class="n">not cited</span></button></article></div>
+</main><form class="composer" onsubmit="return false"><label class="sr-only" for="ask">Ask about your history</label><textarea id="ask" rows="1" placeholder="Ask about your history"></textarea><button class="send" aria-label="Send" disabled><svg width="16" height="16"><use href="#m-send"/></svg></button></form><div class="sr-only" role="status" aria-live="polite">Answer ready. 3 sources.</div></div></div><div class="card-body"><h3>1. A new answer arrives</h3><p>The thread scrolls so your new question sits at the top, and the answer reads from there down. It is not pinned to the bottom. Only the cited rows show, up to 3. The other results wait behind "7 more results · not cited". Grey ticks on the trail show where those other results fall, so you can tell when the rest of your Denver browsing happened.</p></div></div><div class="card"><div class="card-image"><div class="panel"><div class="top"><svg width="20" height="20" aria-hidden="true"><use href="#m-mark"/></svg><h1 class="name">Breadcrumbs</h1>
+<button class="iconbtn" style="margin-left:auto" aria-label="New chat" title="New chat"><svg width="16" height="16"><use href="#m-new"/></svg></button>
+<button class="iconbtn" aria-label="More" title="More" aria-expanded="false"><svg width="16" height="16"><use href="#m-more"/></svg></button></div><main class="thread scroll" aria-label="Conversation">
+<div class="xg"><h2 class="q">what did I search 2 days ago?</h2><article class="card2">
+<p class="ans clamp">Three searches on Saturday: denver weather november <a class="cite" href="#" aria-label="Source 1">1</a> and cheap flights to denver <a class="cite" href="#" aria-label="Source 2">2</a> around 10:50 PM, and java stream filter example <a class="cite" href="#" aria-label="Source 3">3</a> just after 1 AM.</p>
+<div class="foldline"><div class="cap">Read as <b>searches</b>, <b>all of Sat, Oct 31</b></div><button class="srcbtn" aria-expanded="false">3 results<svg width="12" height="12" aria-hidden="true"><use href="#m-chev"/></svg></button></div></article></div><div class="xg"><h2 class="q">what was the last movie I watched?</h2><article class="card2">
+<p class="ans clamp"><b>Past Lives.</b> You opened its Letterboxd page last night at 9:14 PM <a class="cite" href="#" aria-label="Source 1">1</a>.</p>
+<div class="foldline"><div class="cap">Read as <b>pages about “movie”</b>, <b>any time</b></div><button class="srcbtn" aria-expanded="false">3 results<svg width="12" height="12" aria-hidden="true"><use href="#m-chev"/></svg></button></div></article></div>
+<div class="xg"><h2 class="q">I'm going to Denver next month and I know I looked at some pages about it last week, which ones were they?</h2><article class="card2"><p class="ans">Denver came up on Saturday night: you compared flights on Google Flights <a class="cite" href="#" aria-label="Source 1">1</a> and Kayak <a class="cite" href="#" aria-label="Source 2">2</a> and checked the 10-day forecast <a class="cite" href="#" aria-label="Source 3">3</a>.</p></article></div>
+</main><button class="jump"><svg width="14" height="14" aria-hidden="true"><use href="#m-down"/></svg>Latest answer</button><form class="composer" onsubmit="return false"><label class="sr-only" for="ask">Ask about your history</label><textarea id="ask" rows="1" placeholder="Ask about your history"></textarea><button class="send" aria-label="Send" disabled><svg width="16" height="16"><use href="#m-send"/></svg></button></form><div class="sr-only" role="status" aria-live="polite">Answer ready. 3 sources.</div></div></div><div class="card-body"><h3>2. Scrolling back</h3><p>Once a newer question is asked, earlier cards keep their answer (up to 3 lines) and the "Read as" line. Their rows fold behind a "3 results" button that reopens them in place. When you scroll up, a "Latest answer" button appears above the composer and takes you back down.</p></div></div><div class="card"><div class="card-image"><div class="panel"><div class="top"><svg width="20" height="20" aria-hidden="true"><use href="#m-mark"/></svg><h1 class="name">Breadcrumbs</h1>
+<button class="iconbtn" style="margin-left:auto" aria-label="New chat" title="New chat"><svg width="16" height="16"><use href="#m-new"/></svg></button>
+<button class="iconbtn" aria-label="More" title="More" aria-expanded="false"><svg width="16" height="16"><use href="#m-more"/></svg></button></div><main class="thread scroll" aria-label="Conversation">
+<div style="margin-top:-318px"><div class="xg"><h2 class="q">I'm going to Denver next month and I know I looked at some pages about it last week, which ones were they?</h2><article class="card2"><p class="ans">Denver came up on Saturday night: you compared flights on Google Flights <a class="cite" href="#" aria-label="Source 1">1</a> and Kayak <a class="cite" href="#" aria-label="Source 2">2</a> and checked the 10-day forecast <a class="cite" href="#" aria-label="Source 3">3</a>.</p><div class="read"><div class="cap">Read as <b>pages about “denver”</b>, <b>Mon, Oct 26 – Sun, Nov 1</b></div>
+<div class="track" role="img" aria-label="Searched Monday October 26 through Sunday November 1. Cited results Saturday night; other results Monday to Thursday evenings."><span class="tick grey sm" style="left:54.9%"></span><span class="tick grey sm" style="left:54.9%"></span><span class="tick grey sm" style="left:42.7%"></span><span class="tick grey sm" style="left:42.8%"></span><span class="tick grey sm" style="left:25.7%"></span><span class="tick grey sm" style="left:25.8%"></span><span class="tick grey sm" style="left:11.0%"></span><span class="tick wide" style="left:85.1%"></span><span class="tlab" style="left:85.1%">1–3</span></div>
+<div class="days"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div></div><ol class="rows"><li class="cited"><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-label="Source 1.">1</span><span class="tx"><span class="t" style="display:block">Flights from Chicago to Denver | Google Flights</span><span class="m mf"><span class="fav" style="background:#4285f4" aria-hidden="true">G</span><span class="mt">google.com · Sat 10:49 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li><li class="cited"><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-label="Source 2.">2</span><span class="tx"><span class="t" style="display:block">Chicago (ORD) to Denver (DEN) flights | KAYAK</span><span class="m mf"><span class="fav" style="background:#ff690f" aria-hidden="true">K</span><span class="mt">kayak.com · Sat 10:58 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li><li class="cited"><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-label="Source 3.">3</span><span class="tx"><span class="t" style="display:block">Denver, CO 10-Day Weather Forecast | Weather Underground</span><span class="m mf"><span class="fav" style="background:#2b2b2b" aria-hidden="true">W</span><span class="mt">wunderground.com · Sat 10:55 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li><li><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-hidden="true">4</span><span class="tx"><span class="t" style="display:block">Denver Ramen Week 🍜 the twelve bowls worth waiting in line for this November | Westword</span><span class="m mf"><span class="fav" style="background:#c4161c" aria-hidden="true">W</span><span class="mt">westword.com · Thu 8:12 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li><li><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-hidden="true">5</span><span class="tx"><span class="t" style="display:block">Things to do in Denver this weekend - Visit Denver</span><span class="m mf"><span class="fav" style="background:#0b4f8a" aria-hidden="true">D</span><span class="mt">denver.org · Thu 8:20 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li><li><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-hidden="true">6</span><span class="tx"><span class="t" style="display:block">r/Denver: Best neighborhood to stay in for a first visit?</span><span class="m mf"><span class="fav" style="background:#ff4500" aria-hidden="true">r</span><span class="mt">reddit.com · Wed 11:41 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li><li><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-hidden="true">7</span><span class="tx"><span class="t" style="display:block">デンバー旅行ガイド｜地球の歩き方</span><span class="m mf"><span class="fav" style="background:#e60012" aria-hidden="true">地</span><span class="mt">arukikata.co.jp · Wed 11:52 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li><li><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-hidden="true">8</span><span class="tx"><span class="t" style="display:block">Denver International Airport - Parking & Transportation</span><span class="m mf"><span class="fav" style="background:#003a70" aria-hidden="true">D</span><span class="mt">flydenver.com · Tue 7:05 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li><li><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-hidden="true">9</span><span class="tx"><span class="t" style="display:block">Union Station Denver | Hotel, Dining & Shops</span><span class="m mf"><span class="fav" style="background:#7a1f2b" aria-hidden="true">U</span><span class="mt">denverunionstation.com · Tue 7:16 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li><li><a class="row" href="#" target="_blank" rel="noopener"><span class="rank" aria-hidden="true">10</span><span class="tx"><span class="t" style="display:block">Denver Nuggets Schedule 2026-27 | NBA.com</span><span class="m mf"><span class="fav" style="background:#1d428a" aria-hidden="true">N</span><span class="mt">nba.com · Mon 6:30 PM</span></span></span><span class="sr-only">, opens in a new tab</span><svg class="go" width="16" height="16" aria-hidden="true"><use href="#m-out"/></svg></a></li></ol>
+<button class="more" aria-expanded="true"><svg width="14" height="14" aria-hidden="true" style="transform:rotate(-90deg)"><use href="#m-chev"/></svg>Show fewer</button></article></div></div>
+</main><form class="composer" onsubmit="return false"><label class="sr-only" for="ask">Ask about your history</label><textarea id="ask" rows="1" placeholder="Ask about your history"></textarea><button class="send" aria-label="Send" disabled><svg width="16" height="16"><use href="#m-send"/></svg></button></form><div class="sr-only" role="status" aria-live="polite">Answer ready. 3 sources.</div></div></div><div class="card-body"><h3>3. All results open, with long titles</h3><p>"7 more results" opens the uncited rows (4–10, with grey numbers) inside the same card, and "Show fewer" folds them again. Long titles, emoji and Japanese text stay on one line with an ellipsis. A long question wraps inside its bubble, which is capped at 85% width.</p></div></div></div>
+<h3 style="margin:28px 0 6px">Rules this sets for the spec</h3>
+<div class="options">
+<div class="option"><div class="letter">1</div><div class="content"><h3>Scroll anchoring</h3><p>When you send a question, it scrolls to the top of the thread. If you've scrolled up while an answer is being written, new content never pulls you down. The "Latest answer" button shows instead.</p></div></div>
+<div class="option"><div class="letter">2</div><div class="content"><h3>What folds</h3><p>Only the newest card shows its rows. Older cards fold their rows, and only on the next question, never while you're reading. Answer sentences never fold. One diagnostics panel is open at a time.</p></div></div>
+<div class="option"><div class="letter">3</div><div class="content"><h3>Row cap</h3><p>Cited rows always show, up to 3. If the answer cites more than 3 (rare with 1–2 sentences), the extras sit behind "more" with the rest. With no citations (a plain answer that cites nothing, or LLM off), the top 3 results show.</p></div></div>
+<div class="option"><div class="letter">4</div><div class="content"><h3>Spacing</h3><p>32px between exchanges, 16px between a question and its answer, 16px of padding inside a card. The gap is what tells exchanges apart, so no dividers are needed.</p></div></div>
+</div>
+</body></html>
