@@ -33,18 +33,41 @@ class Result(BaseModel):
     score: float | None = None
 
 
+class WindowCounts(BaseModel):
+    """Stored entries of each kind inside a time window, ignoring the topic."""
+
+    search: int
+    visit: int
+
+
 class Answer(BaseModel):
     text: str
     cited: list[str]
 
 
 class AskResponse(BaseModel):
+    """Intent and rows, fast. The LLM sentence comes later from POST /answer with `ask_id`."""
+
+    ask_id: str  # opaque; only asks with results can be answered
     question: str
     intent: Intent
     results: list[Result]
-    answer: Answer | None
-    mode: Literal["llm", "template", "no-match"]
-    timings_ms: dict[str, float]
+    template_answer: Answer | None  # None when mode == "no-match"
+    mode: Literal["results", "no-match"]
+    window_counts: WindowCounts | None  # only when mode == "no-match"
+    history_start: AwareDatetime | None  # oldest stored entry; None for an empty DB
+    timings_ms: dict[str, float]  # parse, execute
+
+
+class AnswerRequest(BaseModel):
+    ask_id: str
+
+
+class AnswerResponse(BaseModel):
+    answer: Answer
+    mode: Literal["llm", "template"]
+    fallback_reason: Literal["llm_off", "rejected_citation", "llm_error"] | None
+    timings_ms: dict[str, float]  # write
 
 
 class HealthResponse(BaseModel):
@@ -52,3 +75,5 @@ class HealthResponse(BaseModel):
     embedder_version: str
     parser: str
     llm_mode: str
+    entry_count: int
+    history_start: AwareDatetime | None  # oldest stored entry, UTC; None for an empty DB
